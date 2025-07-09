@@ -1,0 +1,50 @@
+name: Create Pull Request to Main
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release title
+        id: generate_title
+        run: |
+          RELEASE_TITLE="release-$(date '+%Y%m%d%H%M')"
+          echo "release_title=$RELEASE_TITLE" >> $GITHUB_OUTPUT
+
+      - name: Check if PR already exists
+        id: check_pr
+        run: |
+          PR_EXISTS=$(gh pr list --base main --head develop --state open --json number --jq length)
+          echo "pr_exists=$PR_EXISTS" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.pr_exists == '0'
+        run: |
+          gh pr create \
+            --title "${{ steps.generate_title.outputs.release_title }}" \
+            --body "${{ steps.generate_title.outputs.release_title }}" \
+            --base main \
+            --head develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update existing Pull Request
+        if: steps.check_pr.outputs.pr_exists != '0'
+        run: |
+          PR_NUMBER=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')
+          gh pr edit $PR_NUMBER \
+            --title "${{ steps.generate_title.outputs.release_title }}" \
+            --body "${{ steps.generate_title.outputs.release_title }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
